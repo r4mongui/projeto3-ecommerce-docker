@@ -1,0 +1,11 @@
+import express from 'express';
+import { container } from './container/container';
+import { TYPES } from './container/types';
+import type { ControladorPedido as OrderController } from './controladores/ControladorPedido';
+const app = express();
+app.use(express.json());
+const controller = container.get<OrderController>(TYPES.OrderController);
+app.post('/orders', controller.processOrder);
+app.get('/orders/:id', controller.getOrder);
+app.post('/pedidos', controller.processarPedido);
+export default app;

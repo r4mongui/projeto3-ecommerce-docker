@@ -1,0 +1,35 @@
+name: Verificar Docker Compose
+
+on: [push, pull_request]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Subir o PostgreSQL e a API
+        run: |
+          cp .env.example .env
+          docker compose up --build --wait
+
+      - name: Testar a API nos dois modos
+        run: |
+          docker compose exec -T api npm test
+          docker compose exec -T -e APP_ENV=test api npm test
+
+      - name: Conferir persistência após recriar os contêineres
+        run: |
+          pedido=$(curl --fail-with-body --silent --show-error http://localhost:3000/orders -H 'Content-Type: application/json' -d '{"customer":"persistencia@example.com","items":[{"productId":1,"quantity":1}],"paymentMethod":"pix"}')
+          id=$(jq -er '.orderId' <<< "$pedido")
+          docker compose down
+          docker compose up --wait
+          curl --fail-with-body --silent --show-error "http://localhost:3000/orders/$id" | jq -e --argjson id "$id" '.id == $id and .customer == "persistencia@example.com" and .total == 110'
+
+      - name: Mostrar os logs em caso de falha
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Encerrar o ambiente de teste
+        if: always()
+        run: docker compose down --volumes
